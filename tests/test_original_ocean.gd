@@ -20,6 +20,11 @@ func _run() -> void:
 		assert(texture != null, "Missing original image " + key)
 		var expected_size: Vector2i = sizes[key]
 		assert(texture.get_width() == expected_size.x and texture.get_height() == expected_size.y, "Wrong source texture size: " + key)
+	assert(is_equal_approx(float(sea.get_shader_parameter("normal_strength")), 1.10), "Original normal map detail is too weak")
+	assert(is_equal_approx(float(sea.get_shader_parameter("foam_amount")), 0.82), "Original foam masks are too weak")
+	var shader_source: String = sea.shader.code
+	assert(shader_source.contains("sea_world_xz * 0.12"), "Foam must use world-space texture UVs")
+	assert(shader_source.contains("foam_pattern * (0.20 + crest * 0.80)"), "Foam is not visible between crests")
 	assert(is_equal_approx(sea.get_shader_parameter("wave_height"), game.WAVE_HEIGHT))
 	game._update_celestial_discs()
 	var initial_sun_bearing: Vector3 = (game.sun_disc.global_position - game.camera.global_position).normalized()
