@@ -9,6 +9,8 @@ uniform sampler2D foam_noise : repeat_enable, filter_linear_mipmap;
 uniform bool use_texture_details = false;
 uniform float normal_strength : hint_range(0.0, 1.0) = 0.35;
 uniform float foam_amount : hint_range(0.0, 1.0) = 0.25;
+uniform vec3 sun_direction = vec3(0.4, 0.8, 0.25);
+uniform float sun_glitter : hint_range(0.0, 1.0) = 0.32;
 uniform vec4 foam_color : source_color = vec4(0.70, 0.83, 0.83, 1.0);
 uniform vec4 deep_color : source_color = vec4(0.025, 0.16, 0.22, 1.0);
 uniform vec4 crest_color : source_color = vec4(0.10, 0.38, 0.43, 1.0);
@@ -48,4 +50,10 @@ void fragment() {
     }
     ROUGHNESS = 0.26;
     METALLIC = 0.08;
+    // Cheap directional glints, no screen-space reflection or extra texture fetch.
+    vec3 light_dir = normalize(sun_direction);
+    vec3 view_dir = normalize(VIEW);
+    vec3 half_dir = normalize(light_dir + view_dir);
+    float sparkle = pow(max(dot(normalize(NORMAL), half_dir), 0.0), 64.0);
+    EMISSION = vec3(0.60, 0.72, 0.72) * sparkle * sun_glitter;
 }
