@@ -13,6 +13,11 @@ var touch_sails: float = 0.7
 var hud: Label
 var hud_help: Label
 var hud_layer: CanvasLayer
+var day_night_button: Button
+var is_night: bool = false
+var world_environment: WorldEnvironment
+var sun_light: DirectionalLight3D
+var sea_mesh: MeshInstance3D
 var sea_material: StandardMaterial3D
 const TOUCH_HELM = preload("res://scripts/touch_helm.gd")
 const OCEAN_SHADER = preload("res://shaders/ocean_mobile.gdshader")
@@ -36,29 +41,29 @@ func _ready() -> void:
 	_create_touch_controls()
 
 func _create_world() -> void:
-	var world := WorldEnvironment.new()
+	world_environment = WorldEnvironment.new()
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Color(0.42, 0.65, 0.74)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color(0.65, 0.77, 0.85)
-	world.environment = env
-	add_child(world)
-	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-50, -30, 0)
-	sun.light_energy = 1.4
-	add_child(sun)
-	var sea := MeshInstance3D.new()
+	world_environment.environment = env
+	add_child(world_environment)
+	sun_light = DirectionalLight3D.new()
+	sun_light.rotation_degrees = Vector3(-50, -30, 0)
+	sun_light.light_energy = 1.4
+	add_child(sun_light)
+	sea_mesh = MeshInstance3D.new()
 	var mesh := PlaneMesh.new()
 	mesh.size = Vector2(600, 600)
 	mesh.subdivide_width = 64
 	mesh.subdivide_depth = 64
-	sea.mesh = mesh
+	sea_mesh.mesh = mesh
 	var ocean_material := ShaderMaterial.new()
 	ocean_material.shader = OCEAN_SHADER
-	sea.material_override = ocean_material
-	sea.position.y = WATER_HEIGHT
-	add_child(sea)
+	sea_mesh.material_override = ocean_material
+	sea_mesh.position.y = WATER_HEIGHT
+	add_child(sea_mesh)
 
 func _make_box(parent: Node3D, size: Vector3, pos: Vector3, color: Color) -> void:
 	var part := MeshInstance3D.new()
@@ -79,7 +84,7 @@ func _create_ship() -> void:
 	ship.add_child(ship_visual)
 	_make_box(ship_visual, Vector3(2.1, 0.8, 5.6), Vector3(0, 0.4, 0), Color(0.35, 0.19, 0.1))
 	_make_box(ship_visual, Vector3(1.6, 0.2, 4.4), Vector3(0, 0.85, 0), Color(0.59, 0.39, 0.21))
-	_make_box(ship, Vector3(0.14, 4.2, 0.14), Vector3(0, 2.9, -0.45), Color(0.31, 0.18, 0.1))
+	_make_box(ship_visual, Vector3(0.14, 4.2, 0.14), Vector3(0, 2.9, -0.45), Color(0.31, 0.18, 0.1))
 	_make_box(ship, Vector3(2.3, 2.6, 0.09), Vector3(0, 3.0, -0.45), Color(0.88, 0.84, 0.71))
 	_make_box(ship, Vector3(0.13, 2.8, 0.13), Vector3(0, 2.15, 1.6), Color(0.31, 0.18, 0.1))
 	_make_box(ship, Vector3(1.6, 1.7, 0.09), Vector3(0, 2.5, 1.6), Color(0.85, 0.8, 0.67))
@@ -102,6 +107,12 @@ func _create_hud() -> void:
 	hud_help.text = "A/D: руль   W/S: паруса"
 	hud_help.add_theme_font_size_override("font_size", 15)
 	hud_layer.add_child(hud_help)
+	day_night_button = Button.new()
+	day_night_button.text = "☾ Ночь"
+	day_night_button.custom_minimum_size = Vector2(156, 62)
+	day_night_button.add_theme_font_size_override("font_size", 23)
+	day_night_button.pressed.connect(_toggle_day_night)
+	hud_layer.add_child(day_night_button)
 	_reposition_hud()
 	get_viewport().size_changed.connect(_reposition_hud)
 
@@ -117,6 +128,32 @@ func _reposition_hud() -> void:
 		top_margin = maxf(24.0, float(safe.position.y) * viewport_size.y / float(screen.y) + 16.0)
 	hud.position = Vector2(left_margin, top_margin)
 	hud_help.position = Vector2(left_margin, top_margin + 36.0)
+	var right_margin: float = 24.0
+	if safe.size.x > 0 and screen.x > 0:
+		right_margin = maxf(24.0, float(screen.x - safe.end.x) * viewport_size.x / float(screen.x) + 16.0)
+	day_night_button.position = Vector2(viewport_size.x - right_margin - day_night_button.custom_minimum_size.x, top_margin)
+
+func _toggle_day_night() -> void:
+	is_night = not is_night
+	var env := world_environment.environment
+	if is_night:
+		env.background_color = Color(0.012, 0.028, 0.065)
+		env.ambient_light_color = Color(0.09, 0.14, 0.24)
+		sun_light.light_energy = 0.12
+		day_night_button.text = "☀ День"
+		(sea_mesh.material_override as ShaderMaterial).set_shader_parameter("deep_color", Color(0.008, 0.035, 0.075))
+		(sea_mesh.material_override as ShaderMaterial).set_shader_parameter("crest_color", Color(0.025, 0.10, 0.16))
+	else:
+		env.background_color = Color(0.42, 0.65, 0.74)
+		env.ambient_light_color = Color(0.65, 0.77, 0.85)
+		sun_light.light_energy = 1.4
+		day_night_button.text = "☾ Ночь"
+		(sea_mesh.material_override as ShaderMaterial).set_shader_parameter("deep_color", Color(0.025, 0.16, 0.22))
+		(sea_mesh.material_override as ShaderMaterial).set_shader_parameter("crest_color", Color(0.10, 0.38, 0.43))
+
+func _unhandled_key_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_N:
+		_toggle_day_night()
 
 func _create_touch_controls() -> void:
 	var controls: Control = TOUCH_HELM.new()
