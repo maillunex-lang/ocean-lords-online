@@ -61,6 +61,24 @@ func _create_world() -> void:
 	sea_mesh.mesh = mesh
 	var ocean_material := ShaderMaterial.new()
 	ocean_material.shader = OCEAN_SHADER
+	var texture_paths := {
+		"normal_medium": "res://assets/ocean/ocean_normal_medium.png",
+		"normal_detail": "res://assets/ocean/ocean_normal_detail.png",
+		"foam_mask": "res://assets/ocean/ocean_foam_mask.png",
+		"foam_noise": "res://assets/ocean/ocean_foam_noise.png"
+	}
+	var textures_ready := true
+	for parameter in texture_paths:
+		var path: String = texture_paths[parameter]
+		if ResourceLoader.exists(path):
+			var loaded: Resource = load(path)
+			if loaded is Texture2D:
+				ocean_material.set_shader_parameter(parameter, loaded)
+			else:
+				textures_ready = false
+		else:
+			textures_ready = false
+	ocean_material.set_shader_parameter("use_texture_details", textures_ready)
 	sea_mesh.material_override = ocean_material
 	sea_mesh.position.y = WATER_HEIGHT
 	add_child(sea_mesh)
