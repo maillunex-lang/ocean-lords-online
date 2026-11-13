@@ -111,8 +111,8 @@ func _create_world() -> void:
 	ocean_material.set_shader_parameter("wave_height", WAVE_HEIGHT)
 	ocean_material.set_shader_parameter("wave_scale", WAVE_SCALE)
 	ocean_material.set_shader_parameter("sun_direction", SUN_SKY_BEARING.normalized())
-	ocean_material.set_shader_parameter("normal_strength", 0.62)
-	ocean_material.set_shader_parameter("foam_amount", 0.38)
+	ocean_material.set_shader_parameter("normal_strength", 1.10)
+	ocean_material.set_shader_parameter("foam_amount", 0.82)
 	sea_mesh.material_override = ocean_material
 	sea_mesh.position.y = WATER_HEIGHT
 	add_child(sea_mesh)
