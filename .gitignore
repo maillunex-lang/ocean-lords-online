@@ -6,3 +6,5 @@ export_presets.cfg
 *.aab
 *.keystore
 *.jks
+
+build/
