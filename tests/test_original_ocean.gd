@@ -39,6 +39,8 @@ func _run() -> void:
 	assert(absf(game.sea_mesh.global_position.x - game.ship.global_position.x) < 0.01, "Ocean patch did not follow ship X")
 	assert(absf(game.sea_mesh.global_position.z - game.ship.global_position.z) < 0.01, "Ocean patch did not follow ship Z")
 	assert(shader_source.contains("sea_world_xz.x * 0.87"), "Wave phase must use world coordinates when ocean patch moves")
+	assert(shader_source.contains("texture(foam_noise, wake_uv)"), "Wake must use original foam breakup texture")
+	assert(shader_source.contains("ship_speed > 0.05"), "Wake must disappear when ship is stopped")
 	assert(float(sea.get_shader_parameter("ship_speed")) > 0.0, "Wake has no ship speed")
 	assert((sea.get_shader_parameter("ship_position") as Vector3).distance_to(game.ship.global_position) < 0.01, "Wake not following the ship")
 	print("ORIGINAL_OCEAN_PASS: 4 images, waves, stable sun, moving boat wake")

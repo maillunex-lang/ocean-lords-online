@@ -73,7 +73,17 @@ void fragment() {
     float diverging = exp(-pow((cross_track - (1.3 + max(behind, 0.0) * 0.23)) / 0.85, 2.0));
     diverging *= smoothstep(-2.0, 3.0, behind) * (1.0 - smoothstep(20.0, 45.0, behind));
     float bow_foam = exp(-length(vec2(dot(offset, forward) - 8.0, cross_track * 1.5)) * 0.6);
-    float wake = clamp((trail * 0.50 + diverging * 0.48 + bow_foam * 0.9) * clamp(ship_speed / 6.0, 0.0, 1.0), 0.0, 0.8);
+    // Broken, moving foam instead of a flat painted V behind the hull.
+    // Sample the supplied foam texture only near the wake to limit GPU work.
+    float wake_shape = trail * 0.50 + diverging * 0.48 + bow_foam * 0.9;
+    float wake = 0.0;
+    if (wake_shape > 0.005 && ship_speed > 0.05) {
+        vec2 wake_uv = vec2(behind * 0.13 - TIME * 0.045, dot(offset, sideways) * 0.38);
+        float wake_texture = texture(foam_noise, wake_uv).r;
+        float wake_breakup = smoothstep(0.15, 0.75, wake_texture);
+        float wake_strength = clamp(ship_speed / 6.0, 0.0, 1.0);
+        wake = clamp(wake_shape * mix(0.38, 1.0, wake_breakup) * wake_strength, 0.0, 0.85);
+    }
     ALBEDO = mix(ALBEDO, foam_color.rgb, wake);
     ROUGHNESS = mix(ROUGHNESS, 0.23, 0.20);
     METALLIC = 0.08;

@@ -415,8 +415,6 @@ func _physics_process(delta: float) -> void:
 	speed = move_toward(speed, target_speed, response * delta)
 	ship.rotate_y(-turn_input * TURN_RATE * delta * (0.35 + speed / MAX_SPEED * 0.65))
 	ship.translate_object_local(Vector3(0, 0, -speed * delta))
-	# Follow the ship with the ocean patch; world-space shader waves remain seamless.
-	sea_mesh.global_position = Vector3(ship.global_position.x, WATER_HEIGHT, ship.global_position.z)
 	ocean_time += delta
 	var water_shader := sea_mesh.material_override as ShaderMaterial
 	water_shader.set_shader_parameter("ship_position", ship.global_position)
