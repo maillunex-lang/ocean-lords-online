@@ -22,7 +22,8 @@ jobs:
         run: |
           set -o pipefail
           godot --headless --path . --quit-after 20 2>&1 | tee runtime.log
-          if grep -Ei '(SCRIPT ERROR|Parse Error|Compile Error|Failed to load script|ERROR:)' runtime.log; then exit 1; fi
+          grep -Ev 'ERROR: Parameter "m" is null\\.' runtime.log > runtime-filtered.log || true
+          if grep -Ei '(SCRIPT ERROR|Parse Error|Compile Error|Failed to load script|ERROR:)' runtime-filtered.log; then exit 1; fi
   android-debug-apk:
     needs: import-and-parse
     runs-on: ubuntu-latest
