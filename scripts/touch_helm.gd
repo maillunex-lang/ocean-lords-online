@@ -8,24 +8,38 @@ var sail_finger: int = -1
 var helm_value: float = 0.0
 var sail_value: float = 0.0
 var sail_fraction: float = 0.7
-var _safe_pad: float = 58.0
+var safe_insets: Vector4 = Vector4(24, 24, 24, 24)
+var _safe_pad: float = 32.0
 const RADIUS := 66.0
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	resized.connect(queue_redraw)
+	_refresh_safe_area()
+	get_viewport().size_changed.connect(_refresh_safe_area)
+	queue_redraw()
+
+func _refresh_safe_area() -> void:
+	var screen_rect: Rect2i = DisplayServer.get_display_safe_area()
+	var screen_size: Vector2i = DisplayServer.screen_get_size()
+	if screen_rect.size.x <= 0 or screen_rect.size.y <= 0 or screen_size.x <= 0 or screen_size.y <= 0:
+		safe_insets = Vector4(24, 24, 24, 24)
+	else:
+		var sx: float = size.x / float(screen_size.x)
+		var sy: float = size.y / float(screen_size.y)
+		safe_insets = Vector4(screen_rect.position.x * sx, screen_rect.position.y * sy, (screen_size.x - screen_rect.end.x) * sx, (screen_size.y - screen_rect.end.y) * sy)
 	queue_redraw()
 
 func _helm_center() -> Vector2:
-	return Vector2(_safe_pad + RADIUS, size.y - _safe_pad - RADIUS)
+	return Vector2(safe_insets.x + _safe_pad + RADIUS, size.y - safe_insets.w - _safe_pad - RADIUS)
 
 func _sail_center() -> Vector2:
-	return Vector2(size.x - _safe_pad - 44.0, size.y - _safe_pad - 82.0)
+	return Vector2(size.x - safe_insets.z - _safe_pad - 44.0, size.y - safe_insets.w - _safe_pad - 82.0)
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
-		var p := event.position
+		var p: Vector2 = event.position
 		if event.pressed:
 			if helm_finger == -1 and p.x < size.x * 0.42 and p.y > size.y * 0.42:
 				helm_finger = event.index
