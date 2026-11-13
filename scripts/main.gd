@@ -60,10 +60,12 @@ func _create_world() -> void:
 	env.background_color = Color(0.42, 0.65, 0.74)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color(0.65, 0.77, 0.85)
+	env.ambient_light_energy = 1.0
 	world_environment.environment = env
 	add_child(world_environment)
 	sun_light = DirectionalLight3D.new()
 	sun_light.rotation_degrees = Vector3(-50, -30, 0)
+	sun_light.light_color = Color.WHITE
 	sun_light.light_energy = 1.4
 	add_child(sun_light)
 	sea_mesh = MeshInstance3D.new()
@@ -277,16 +279,20 @@ func _toggle_day_night() -> void:
 	is_night = not is_night
 	var env := world_environment.environment
 	if is_night:
-		env.background_color = Color(0.012, 0.028, 0.065)
-		env.ambient_light_color = Color(0.09, 0.14, 0.24)
-		sun_light.light_energy = 0.12
-		(sea_mesh.material_override as ShaderMaterial).set_shader_parameter("sun_glitter", 0.035)
+		env.background_color = Color(0.075, 0.13, 0.23)
+		env.ambient_light_color = Color(0.34, 0.43, 0.59)
+		env.ambient_light_energy = 1.3
+		sun_light.light_color = Color(0.58, 0.72, 1.0)
+		sun_light.light_energy = 0.72
+		(sea_mesh.material_override as ShaderMaterial).set_shader_parameter("sun_glitter", 0.18)
 		day_night_button.text = "☀ День"
-		(sea_mesh.material_override as ShaderMaterial).set_shader_parameter("deep_color", Color(0.008, 0.035, 0.075))
-		(sea_mesh.material_override as ShaderMaterial).set_shader_parameter("crest_color", Color(0.025, 0.10, 0.16))
+		(sea_mesh.material_override as ShaderMaterial).set_shader_parameter("deep_color", Color(0.035, 0.095, 0.16))
+		(sea_mesh.material_override as ShaderMaterial).set_shader_parameter("crest_color", Color(0.11, 0.23, 0.33))
 	else:
 		env.background_color = Color(0.42, 0.65, 0.74)
 		env.ambient_light_color = Color(0.65, 0.77, 0.85)
+		env.ambient_light_energy = 1.0
+		sun_light.light_color = Color.WHITE
 		sun_light.light_energy = 1.4
 		(sea_mesh.material_override as ShaderMaterial).set_shader_parameter("sun_glitter", 0.32)
 		day_night_button.text = "☾ Ночь"
