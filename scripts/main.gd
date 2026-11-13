@@ -15,6 +15,14 @@ var hud_help: Label
 var hud_layer: CanvasLayer
 var sea_material: StandardMaterial3D
 const TOUCH_HELM = preload("res://scripts/touch_helm.gd")
+const OCEAN_SHADER = preload("res://shaders/ocean_mobile.gdshader")
+const WATER_HEIGHT := -0.45
+const WAVE_HEIGHT := 0.18
+const WAVE_SCALE := 0.12
+const WAVE_SPEED := 0.75
+var ocean_time: float = 0.0
+var ship_visual: Node3D
+var current_heel: float = 0.0
 
 const MAX_SPEED := 12.0
 const ACCEL := 2.2
@@ -42,14 +50,14 @@ func _create_world() -> void:
 	add_child(sun)
 	var sea := MeshInstance3D.new()
 	var mesh := PlaneMesh.new()
-	mesh.size = Vector2(4000, 4000)
+	mesh.size = Vector2(600, 600)
+	mesh.subdivide_width = 64
+	mesh.subdivide_depth = 64
 	sea.mesh = mesh
-	sea_material = StandardMaterial3D.new()
-	sea_material.albedo_color = Color(0.045, 0.27, 0.34)
-	sea_material.metallic = 0.1
-	sea_material.roughness = 0.32
-	sea.material_override = sea_material
-	sea.position.y = -0.45
+	var ocean_material := ShaderMaterial.new()
+	ocean_material.shader = OCEAN_SHADER
+	sea.material_override = ocean_material
+	sea.position.y = WATER_HEIGHT
 	add_child(sea)
 
 func _make_box(parent: Node3D, size: Vector3, pos: Vector3, color: Color) -> void:
@@ -67,8 +75,10 @@ func _create_ship() -> void:
 	ship = Node3D.new()
 	ship.name = "PlayerShip"
 	add_child(ship)
-	_make_box(ship, Vector3(2.1, 0.8, 5.6), Vector3(0, 0.4, 0), Color(0.35, 0.19, 0.1))
-	_make_box(ship, Vector3(1.6, 0.2, 4.4), Vector3(0, 0.85, 0), Color(0.59, 0.39, 0.21))
+	ship_visual = Node3D.new()
+	ship.add_child(ship_visual)
+	_make_box(ship_visual, Vector3(2.1, 0.8, 5.6), Vector3(0, 0.4, 0), Color(0.35, 0.19, 0.1))
+	_make_box(ship_visual, Vector3(1.6, 0.2, 4.4), Vector3(0, 0.85, 0), Color(0.59, 0.39, 0.21))
 	_make_box(ship, Vector3(0.14, 4.2, 0.14), Vector3(0, 2.9, -0.45), Color(0.31, 0.18, 0.1))
 	_make_box(ship, Vector3(2.3, 2.6, 0.09), Vector3(0, 3.0, -0.45), Color(0.88, 0.84, 0.71))
 	_make_box(ship, Vector3(0.13, 2.8, 0.13), Vector3(0, 2.15, 1.6), Color(0.31, 0.18, 0.1))
@@ -136,8 +146,32 @@ func _physics_process(delta: float) -> void:
 	speed = move_toward(speed, target_speed, ACCEL * delta)
 	ship.rotate_y(-turn_input * TURN_RATE * delta * (0.35 + speed / MAX_SPEED * 0.65))
 	ship.translate_object_local(Vector3(0, 0, -speed * delta))
+	ocean_time += delta
+	_update_ship_buoyancy(delta)
 	hud.text = "OCEAN LORDS ONLINE  |  %.1f kn  |  Sails %d%%" % [speed, roundi(throttle * 100)]
 	_update_camera(delta)
+
+func _wave_height_at(pos: Vector3, t: float) -> float:
+	var a := (pos.x * 0.87 + pos.z * 0.49) * WAVE_SCALE + t * WAVE_SPEED
+	var b := (pos.x * -0.43 + pos.z * 0.91) * WAVE_SCALE * 1.6 - t * WAVE_SPEED * 0.7
+	return WAVE_HEIGHT * (sin(a) + 0.45 * sin(b))
+
+func _update_ship_buoyancy(delta: float) -> void:
+	# A cheap deterministic three-sample buoyancy approximation.
+	# Not rigid-body hydrodynamics; collisions and network authority come later.
+	var origin := ship.global_position
+	var forward := ship.global_basis.z.normalized()
+	var right := ship.global_basis.x.normalized()
+	var front_height := _wave_height_at(origin - forward * 2.0, ocean_time)
+	var back_height := _wave_height_at(origin + forward * 2.0, ocean_time)
+	var left_height := _wave_height_at(origin - right * 0.8, ocean_time)
+	var right_height := _wave_height_at(origin + right * 0.8, ocean_time)
+	var center_height := _wave_height_at(origin, ocean_time)
+	ship_visual.position.y = lerpf(ship_visual.position.y, center_height, clampf(delta * 3.0, 0.0, 1.0))
+	var target_pitch := atan2(front_height - back_height, 4.0)
+	var target_roll := atan2(left_height - right_height, 1.6) - turn_input * speed / MAX_SPEED * 0.07
+	ship_visual.rotation.x = lerp_angle(ship_visual.rotation.x, target_pitch, clampf(delta * 2.5, 0.0, 1.0))
+	ship_visual.rotation.z = lerp_angle(ship_visual.rotation.z, target_roll, clampf(delta * 2.5, 0.0, 1.0))
 
 func _update_camera(delta: float) -> void:
 	if camera == null or ship == null:
