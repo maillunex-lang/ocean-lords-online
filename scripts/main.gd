@@ -30,9 +30,12 @@ var moon_disc: MeshInstance3D
 var wind_direction := Vector2(0.94, 0.34)
 var wind_strength := 0.8
 const WATER_HEIGHT := -0.45
-const WAVE_HEIGHT := 0.18
-const WAVE_SCALE := 0.12
+const WAVE_HEIGHT := 0.58
+const WAVE_SCALE := 0.18
 const WAVE_SPEED := 0.75
+# World-space bearings stay constant when the boat/camera turns.
+const SUN_SKY_BEARING := Vector3(-0.74, 0.28, -0.61)
+const MOON_SKY_BEARING := Vector3(0.45, 0.34, -0.82)
 var ocean_time: float = 0.0
 var ship_visual: Node3D
 const MESHY_LOD_PATHS := [
@@ -82,8 +85,8 @@ func _create_world() -> void:
 	sea_mesh = MeshInstance3D.new()
 	var mesh := PlaneMesh.new()
 	mesh.size = Vector2(600, 600)
-	mesh.subdivide_width = 64
-	mesh.subdivide_depth = 64
+	mesh.subdivide_width = 128
+	mesh.subdivide_depth = 128
 	sea_mesh.mesh = mesh
 	var ocean_material := ShaderMaterial.new()
 	ocean_material.shader = OCEAN_SHADER
@@ -105,6 +108,11 @@ func _create_world() -> void:
 		else:
 			textures_ready = false
 	ocean_material.set_shader_parameter("use_texture_details", textures_ready)
+	ocean_material.set_shader_parameter("wave_height", WAVE_HEIGHT)
+	ocean_material.set_shader_parameter("wave_scale", WAVE_SCALE)
+	ocean_material.set_shader_parameter("sun_direction", SUN_SKY_BEARING.normalized())
+	ocean_material.set_shader_parameter("normal_strength", 0.62)
+	ocean_material.set_shader_parameter("foam_amount", 0.38)
 	sea_mesh.material_override = ocean_material
 	sea_mesh.position.y = WATER_HEIGHT
 	add_child(sea_mesh)
@@ -231,12 +239,11 @@ func _make_glow(color: Color, intensity: float) -> MeshInstance3D:
 func _update_celestial_discs() -> void:
 	if camera == null:
 		return
-	# Camera-facing sky billboards follow the ship to avoid floating out of range.
+	# Keep sun/moon at constant WORLD bearings, never locked to camera rotation.
+	# Translate with the camera only to avoid running out of draw distance.
 	var center := camera.global_position
-	var ahead := -camera.global_basis.z * 165.0
-	var right := camera.global_basis.x
-	sun_disc.global_position = center + ahead + Vector3.UP * 35.0 - right * 35.0
-	moon_disc.global_position = center + ahead + Vector3.UP * 35.0 + right * 30.0
+	sun_disc.global_position = center + SUN_SKY_BEARING.normalized() * 220.0
+	moon_disc.global_position = center + MOON_SKY_BEARING.normalized() * 220.0
 	sun_disc.look_at(camera.global_position, Vector3.UP)
 	moon_disc.look_at(camera.global_position, Vector3.UP)
 
@@ -357,6 +364,7 @@ func _toggle_day_night() -> void:
 		sun_light.light_color = Color(0.58, 0.72, 1.0)
 		sun_light.light_energy = 0.72
 		(sea_mesh.material_override as ShaderMaterial).set_shader_parameter("sun_glitter", 0.18)
+		(sea_mesh.material_override as ShaderMaterial).set_shader_parameter("sun_direction", MOON_SKY_BEARING.normalized())
 		day_night_button.text = "☀ День"
 		(sea_mesh.material_override as ShaderMaterial).set_shader_parameter("deep_color", Color(0.035, 0.095, 0.16))
 		(sea_mesh.material_override as ShaderMaterial).set_shader_parameter("crest_color", Color(0.11, 0.23, 0.33))
@@ -367,6 +375,7 @@ func _toggle_day_night() -> void:
 		sun_light.light_color = Color.WHITE
 		sun_light.light_energy = 1.4
 		(sea_mesh.material_override as ShaderMaterial).set_shader_parameter("sun_glitter", 0.32)
+		(sea_mesh.material_override as ShaderMaterial).set_shader_parameter("sun_direction", SUN_SKY_BEARING.normalized())
 		day_night_button.text = "☾ Ночь"
 		(sea_mesh.material_override as ShaderMaterial).set_shader_parameter("deep_color", Color(0.025, 0.16, 0.22))
 		(sea_mesh.material_override as ShaderMaterial).set_shader_parameter("crest_color", Color(0.10, 0.38, 0.43))
@@ -407,6 +416,10 @@ func _physics_process(delta: float) -> void:
 	ship.rotate_y(-turn_input * TURN_RATE * delta * (0.35 + speed / MAX_SPEED * 0.65))
 	ship.translate_object_local(Vector3(0, 0, -speed * delta))
 	ocean_time += delta
+	var water_shader := sea_mesh.material_override as ShaderMaterial
+	water_shader.set_shader_parameter("ship_position", ship.global_position)
+	water_shader.set_shader_parameter("ship_forward", -ship.global_basis.z)
+	water_shader.set_shader_parameter("ship_speed", speed)
 	wind_strength = 0.8 + 0.18 * sin(ocean_time * 0.27)
 	sail_material.set_shader_parameter("wind_strength", wind_strength * throttle)
 	_update_ship_buoyancy(delta)

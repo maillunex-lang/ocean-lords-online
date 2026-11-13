@@ -14,13 +14,18 @@ uniform float sun_glitter : hint_range(0.0, 1.0) = 0.32;
 uniform vec4 foam_color : source_color = vec4(0.70, 0.83, 0.83, 1.0);
 uniform vec4 deep_color : source_color = vec4(0.025, 0.16, 0.22, 1.0);
 uniform vec4 crest_color : source_color = vec4(0.10, 0.38, 0.43, 1.0);
-uniform float wave_height : hint_range(0.0, 1.0) = 0.18;
-uniform float wave_scale : hint_range(0.01, 1.0) = 0.12;
+uniform float wave_height : hint_range(0.0, 1.0) = 0.58;
+uniform float wave_scale : hint_range(0.01, 1.0) = 0.18;
 uniform float wave_speed : hint_range(0.0, 3.0) = 0.75;
 
+uniform vec3 ship_position = vec3(0.0);
+uniform vec3 ship_forward = vec3(0.0, 0.0, -1.0);
+uniform float ship_speed = 0.0;
 varying float wave_signal;
+varying vec2 sea_world_xz;
 
 void vertex() {
+    sea_world_xz = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xz;
     float a = (VERTEX.x * 0.87 + VERTEX.z * 0.49) * wave_scale + TIME * wave_speed;
     float b = (VERTEX.x * -0.43 + VERTEX.z * 0.91) * wave_scale * 1.6 - TIME * wave_speed * 0.7;
     float wa = sin(a);
@@ -36,8 +41,8 @@ void fragment() {
     float t = clamp(0.5 + wave_signal * 0.45, 0.0, 1.0);
     ALBEDO = mix(deep_color.rgb, crest_color.rgb, t);
     if (use_texture_details) {
-        vec2 uv_a = UV * 14.0 + vec2(0.013, 0.008) * TIME;
-        vec2 uv_b = UV * 38.0 + vec2(-0.019, 0.011) * TIME;
+        vec2 uv_a = UV * 11.0 + vec2(0.013, 0.008) * TIME;
+        vec2 uv_b = UV * 32.0 + vec2(-0.019, 0.011) * TIME;
         vec3 n_a = texture(normal_medium, uv_a).rgb * 2.0 - 1.0;
         vec3 n_b = texture(normal_detail, uv_b).rgb * 2.0 - 1.0;
         NORMAL_MAP = normalize(vec3((n_a.xy + n_b.xy * 0.45) * normal_strength, 1.0)) * 0.5 + 0.5;
@@ -45,9 +50,24 @@ void fragment() {
         float f = texture(foam_mask, UV * 5.0 + vec2(0.006, -0.004) * TIME).r;
         float noise_v = texture(foam_noise, UV * 9.0 + vec2(-0.004, 0.007) * TIME).r;
         float crest = smoothstep(0.50, 0.88, t);
-        float foam = smoothstep(0.50, 0.78, f * 0.7 + noise_v * 0.3) * crest * foam_amount;
+        float foam = smoothstep(0.43, 0.73, f * 0.73 + noise_v * 0.27) * crest * foam_amount;
         ALBEDO = mix(ALBEDO, foam_color.rgb, foam);
     }
+    // Thin, inexpensive bow and trailing wakes, driven by REAL ship position
+    // and speed. Adds no extra texture reads and fades when sails are reefed.
+    vec2 forward = normalize(ship_forward.xz + vec2(0.00001));
+    vec2 sideways = vec2(-forward.y, forward.x);
+    vec2 offset = sea_world_xz - ship_position.xz;
+    float behind = -dot(offset, forward);
+    float cross_track = abs(dot(offset, sideways));
+    float spread = 1.6 + max(behind, 0.0) * 0.14;
+    float trail = (1.0 - smoothstep(spread * 0.20, spread, cross_track));
+    trail *= smoothstep(-1.0, 3.0, behind) * (1.0 - smoothstep(18.0, 48.0, behind));
+    float diverging = exp(-pow((cross_track - (1.3 + max(behind, 0.0) * 0.23)) / 0.85, 2.0));
+    diverging *= smoothstep(-2.0, 3.0, behind) * (1.0 - smoothstep(20.0, 45.0, behind));
+    float bow_foam = exp(-length(vec2(dot(offset, forward) - 8.0, cross_track * 1.5)) * 0.6);
+    float wake = clamp((trail * 0.50 + diverging * 0.48 + bow_foam * 0.9) * clamp(ship_speed / 6.0, 0.0, 1.0), 0.0, 0.8);
+    ALBEDO = mix(ALBEDO, foam_color.rgb, wake);
     ROUGHNESS = 0.26;
     METALLIC = 0.08;
     // Cheap directional glints, no screen-space reflection or extra texture fetch.

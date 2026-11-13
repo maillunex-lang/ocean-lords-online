@@ -1,16 +1,20 @@
-# Ocean texture pack
+# Ocean shader: user's original textures
 
-The shader at `shaders/ocean_mobile.gdshader` supports four textures:
+The four PNGs in this directory came from the user's approved ocean asset archive,
+transferred intact to Lunex with Termalin and checked by SHA-256. They replace the
+older procedural placeholder PNGs in the project.
 
-| File | Shader uniform | Source size |
+| PNG | Shader uniform | Resolution |
 | --- | --- | --- |
-| `assets/ocean/ocean_normal_medium.png` | `normal_medium` | 1024×1024 |
-| `assets/ocean/ocean_normal_detail.png` | `normal_detail` | 512×512 |
-| `assets/ocean/ocean_foam_mask.png` | `foam_mask` | 1024×1024 |
-| `assets/ocean/ocean_foam_noise.png` | `foam_noise` | 512×512 |
+| ocean_normal_medium.png | normal_medium | 1024x1024 |
+| ocean_normal_detail.png | normal_detail | 512x512 |
+| ocean_foam_mask.png | foam_mask | 1024x1024 |
+| ocean_foam_noise.png | foam_noise | 512x512 |
 
-The user-supplied images have been prepared in a downloadable archive. The PNG binaries have **not yet been committed to this repository**. Extract the archive at the project root, keeping the `assets/ocean/` paths, and commit the PNGs to this feature branch. The game checks all four resources at runtime and enables texture details only when all are present.
+All four are loaded in scripts/main.gd, checked in tests/test_original_ocean.gd.
+The shader in shaders/ocean_mobile.gdshader contains moving normal maps,
+foam breakup, Gerstner-style simplified height waves and a cheap dynamic wake.
+The sun and moon bearings are fixed in world coordinates.
 
-For Android, use mipmaps and repeating sampler modes. Verify tangent-space normal direction, edge tiling, and foam threshold in Godot on a real device. The headless CI run does not validate visual appearance or device FPS.
-
-Do not merge to main or label the APK visually validated until the texture binaries are committed and the build has passed.
+The screenshots are visual QA on Godot's software-rendering environment, NOT a
+substitute for Android hardware testing.

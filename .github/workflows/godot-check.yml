@@ -11,12 +11,30 @@ jobs:
       image: barichello/godot-ci:4.6
     steps:
       - uses: actions/checkout@v4
+      - name: Restore original 1024px ocean normal map
+        run: cat assets/ocean/source_parts/medium_part_* | base64 -d > assets/ocean/ocean_normal_medium.png
       - name: Import and parse
         shell: bash
         run: |
           set -euo pipefail
           godot --headless --editor --path . --import --quit 2>&1 | tee import.log
           if grep -Ei '(SCRIPT ERROR|Parse Error|Compile Error|Failed to load script|ERROR:)' import.log | grep -vF 'ERROR: Unable to load fontconfig, system font support is disabled.'; then exit 1; fi
+      - name: Verify original ocean PNG digests
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s\n' \
+            'b0c436035f492936c389c1b9f247d3bc145cebed3d77a1e58e8a852aac8a82b3  assets/ocean/ocean_normal_medium.png' \
+            '0af00fde92c6a49182b14f2dbd42200d4c9d8724b7b4080fa61aaff385899442  assets/ocean/ocean_normal_detail.png' \
+            '9e37753304c5402fd0adbcfa9c9a40a66e5ed20f2c10724e47ce039186a8aae3  assets/ocean/ocean_foam_mask.png' \
+            'a62bb71d30de69770a48050f80ccfde6b567b402b6808364a167d5b0aa0a8419  assets/ocean/ocean_foam_noise.png' | sha256sum -c -
+      - name: Verify shader has original images and stable sun/wake
+        shell: bash
+        run: |
+          set -euo pipefail
+          godot --headless --path . --script res://tests/test_original_ocean.gd 2>&1 | tee original-ocean-test.log
+          grep -F 'ORIGINAL_OCEAN_PASS' original-ocean-test.log
+          if grep -Ei '(SCRIPT ERROR|Parse Error|Compile Error|Failed to load script|ERROR:)' original-ocean-test.log | grep -vF 'ERROR: Unable to load fontconfig, system font support is disabled.'; then exit 1; fi
       - name: Smoke test
         shell: bash
         run: |
@@ -37,6 +55,8 @@ jobs:
       image: barichello/godot-ci:4.6
     steps:
       - uses: actions/checkout@v4
+      - name: Restore original 1024px ocean normal map
+        run: cat assets/ocean/source_parts/medium_part_* | base64 -d > assets/ocean/ocean_normal_medium.png
       - name: Import resources
         shell: bash
         run: |
