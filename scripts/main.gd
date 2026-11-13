@@ -27,7 +27,14 @@ const WAVE_SCALE := 0.12
 const WAVE_SPEED := 0.75
 var ocean_time: float = 0.0
 var ship_visual: Node3D
-const MESHY_SHIP_PATH := "res://assets/ships/meshy_brigantine.glb"
+const MESHY_LOD_PATHS := [
+    "res://assets/ships/brigantine_lod0.glb",
+    "res://assets/ships/brigantine_lod1.glb",
+    "res://assets/ships/brigantine_lod2.glb"
+]
+const LOD_DISTANCES := [45.0, 90.0]
+var ship_lod_nodes: Array[Node3D] = []
+var active_ship_lod: int = -1
 var current_heel: float = 0.0
 
 const MAX_SPEED := 12.0
@@ -107,25 +114,61 @@ func _create_ship() -> void:
 	_make_box(ship, Vector3(2.3, 2.6, 0.09), Vector3(0, 3.0, -0.45), Color(0.88, 0.84, 0.71))
 	_make_box(ship, Vector3(0.13, 2.8, 0.13), Vector3(0, 2.15, 1.6), Color(0.31, 0.18, 0.1))
 	_make_box(ship, Vector3(1.6, 1.7, 0.09), Vector3(0, 2.5, 1.6), Color(0.85, 0.8, 0.67))
+	_try_load_meshy_ship()
 
 func _try_load_meshy_ship() -> void:
-	# The actual Meshy GLB is not in GitHub yet. Keep a working fallback.
-	if not ResourceLoader.exists(MESHY_SHIP_PATH):
-		return
-	var resource: Resource = load(MESHY_SHIP_PATH)
-	if not resource is PackedScene:
-		push_warning("Meshy ship GLB did not import as PackedScene.")
-		return
-	var model: Node = (resource as PackedScene).instantiate()
-	if not model is Node3D:
-		model.queue_free()
-		push_warning("Meshy ship GLB has no Node3D root.")
-		return
-	# Meshy models can have arbitrary size/orientation. Adjust after GLB audit.
+	# All LODs are imported and cached once; visibility changes cost no IO.
+	for path in MESHY_LOD_PATHS:
+		if not ResourceLoader.exists(path):
+			push_warning("Brigantine LOD missing: " + path)
+			return
+	var imported: Array[Node3D] = []
+	for path in MESHY_LOD_PATHS:
+		var resource: Resource = load(path)
+		if not resource is PackedScene:
+			push_warning("Invalid brigantine GLB: " + path)
+			for node in imported:
+				node.queue_free()
+			return
+		var model: Node = (resource as PackedScene).instantiate()
+		if not model is Node3D:
+			model.queue_free()
+			for node in imported:
+				node.queue_free()
+			return
+		imported.append(model as Node3D)
 	for child in ship_visual.get_children():
 		child.queue_free()
-	ship_visual.add_child(model)
-	(model as Node3D).position = Vector3.ZERO
+	# The old primitive sails were direct ship children, not part of ship_visual.
+	for child in ship.get_children():
+		if child != ship_visual:
+			child.queue_free()
+	for model in imported:
+		ship_visual.add_child(model)
+		model.visible = false
+	ship_lod_nodes = imported
+	_set_ship_lod(0)
+
+
+func _set_ship_lod(index: int) -> void:
+	if ship_lod_nodes.is_empty() or index == active_ship_lod:
+		return
+	active_ship_lod = clampi(index, 0, ship_lod_nodes.size() - 1)
+	for i in range(ship_lod_nodes.size()):
+		ship_lod_nodes[i].visible = i == active_ship_lod
+
+
+func _update_ship_lod() -> void:
+	if ship_lod_nodes.is_empty() or camera == null:
+		return
+	var distance: float = camera.global_position.distance_to(ship.global_position)
+	var wanted := 0
+	if distance > LOD_DISTANCES[1]:
+		wanted = 2
+	elif distance > LOD_DISTANCES[0]:
+		wanted = 1
+	_set_ship_lod(wanted)
+
 
 func _create_camera() -> void:
 	camera = Camera3D.new()
@@ -227,6 +270,7 @@ func _physics_process(delta: float) -> void:
 	_update_ship_buoyancy(delta)
 	hud.text = "OCEAN LORDS ONLINE  |  %.1f kn  |  Sails %d%%" % [speed, roundi(throttle * 100)]
 	_update_camera(delta)
+	_update_ship_lod()
 
 func _wave_height_at(pos: Vector3, t: float) -> float:
 	var a := (pos.x * 0.87 + pos.z * 0.49) * WAVE_SCALE + t * WAVE_SPEED
