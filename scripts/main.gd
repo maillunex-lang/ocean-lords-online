@@ -27,6 +27,7 @@ const WAVE_SCALE := 0.12
 const WAVE_SPEED := 0.75
 var ocean_time: float = 0.0
 var ship_visual: Node3D
+const MESHY_SHIP_PATH := "res://assets/ships/meshy_brigantine.glb"
 var current_heel: float = 0.0
 
 const MAX_SPEED := 12.0
@@ -106,6 +107,25 @@ func _create_ship() -> void:
 	_make_box(ship, Vector3(2.3, 2.6, 0.09), Vector3(0, 3.0, -0.45), Color(0.88, 0.84, 0.71))
 	_make_box(ship, Vector3(0.13, 2.8, 0.13), Vector3(0, 2.15, 1.6), Color(0.31, 0.18, 0.1))
 	_make_box(ship, Vector3(1.6, 1.7, 0.09), Vector3(0, 2.5, 1.6), Color(0.85, 0.8, 0.67))
+
+func _try_load_meshy_ship() -> void:
+	# The actual Meshy GLB is not in GitHub yet. Keep a working fallback.
+	if not ResourceLoader.exists(MESHY_SHIP_PATH):
+		return
+	var resource: Resource = load(MESHY_SHIP_PATH)
+	if not resource is PackedScene:
+		push_warning("Meshy ship GLB did not import as PackedScene.")
+		return
+	var model: Node = (resource as PackedScene).instantiate()
+	if not model is Node3D:
+		model.queue_free()
+		push_warning("Meshy ship GLB has no Node3D root.")
+		return
+	# Meshy models can have arbitrary size/orientation. Adjust after GLB audit.
+	for child in ship_visual.get_children():
+		child.queue_free()
+	ship_visual.add_child(model)
+	(model as Node3D).position = Vector3.ZERO
 
 func _create_camera() -> void:
 	camera = Camera3D.new()
