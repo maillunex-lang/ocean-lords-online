@@ -116,7 +116,7 @@ func _physics_process(delta: float) -> void:
 		steer = touch_turn
 	turn_input = move_toward(turn_input, steer, delta * 2.5)
 	var sail_change := Input.get_axis("ui_down", "ui_up")
-		throttle = clampf(throttle + sail_change * delta * 0.35, 0.0, 1.0)
+	throttle = clampf(throttle + sail_change * delta * 0.35, 0.0, 1.0)
 	var target_speed := throttle * MAX_SPEED
 	speed = move_toward(speed, target_speed, ACCEL * delta)
 	ship.rotate_y(-turn_input * TURN_RATE * delta * (0.35 + speed / MAX_SPEED * 0.65))
