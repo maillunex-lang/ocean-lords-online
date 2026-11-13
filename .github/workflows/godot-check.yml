@@ -11,7 +11,15 @@ jobs:
       image: barichello/godot-ci:4.3
     steps:
       - uses: actions/checkout@v4
-      - name: Import project and parse scripts
-        run: godot --headless --editor --path . --import --quit
-      - name: Headless startup smoke test
-        run: timeout 20s godot --headless --path . --quit-after 20
+      - name: Import and fail on script errors
+        shell: bash
+        run: |
+          set -o pipefail
+          godot --headless --editor --path . --import --quit 2>&1 | tee import.log
+          if grep -Ei '(SCRIPT ERROR|Parse Error|Compile Error|Failed to load script|ERROR:)' import.log; then exit 1; fi
+      - name: Smoke test and fail on runtime errors
+        shell: bash
+        run: |
+          set -o pipefail
+          godot --headless --path . --quit-after 20 2>&1 | tee runtime.log
+          if grep -Ei '(SCRIPT ERROR|Parse Error|Compile Error|Failed to load script|ERROR:)' runtime.log; then exit 1; fi
