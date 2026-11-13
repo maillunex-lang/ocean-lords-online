@@ -51,7 +51,8 @@ var active_ship_lod: int = -1
 var current_heel: float = 0.0
 
 const MAX_SPEED := 12.0
-const ACCEL := 2.2
+const ACCEL := 3.5
+const SAIL_BRAKE := 9.0
 const TURN_RATE := 0.65
 
 func _ready() -> void:
@@ -192,7 +193,7 @@ func _create_sails() -> void:
 	sail_material = ShaderMaterial.new()
 	sail_material.shader = SAIL_SHADER
 	sail_material.set_shader_parameter("wind_direction", wind_direction)
-	sail_material.set_shader_parameter("wind_strength", wind_strength)
+	sail_material.set_shader_parameter("wind_strength", wind_strength * throttle)
 	for mast_z in [-3.0, 5.0]:
 		for height in [11.0, 15.0]:
 			var cloth := MeshInstance3D.new()
@@ -398,13 +399,16 @@ func _physics_process(delta: float) -> void:
 	turn_input = move_toward(turn_input, steer, delta * 2.5)
 	var sail_change := Input.get_axis("ui_down", "ui_up")
 	throttle = clampf(throttle + sail_change * delta * 0.35, 0.0, 1.0)
+	# The right-hand sail control changes actual thrust, not just a HUD value.
+	# Reefing to zero rapidly bleeds speed; deploying sail accelerates gradually.
 	var target_speed := throttle * MAX_SPEED
-	speed = move_toward(speed, target_speed, ACCEL * delta)
+	var response := ACCEL * (0.35 + throttle * 0.65) if speed < target_speed else SAIL_BRAKE
+	speed = move_toward(speed, target_speed, response * delta)
 	ship.rotate_y(-turn_input * TURN_RATE * delta * (0.35 + speed / MAX_SPEED * 0.65))
 	ship.translate_object_local(Vector3(0, 0, -speed * delta))
 	ocean_time += delta
 	wind_strength = 0.8 + 0.18 * sin(ocean_time * 0.27)
-	sail_material.set_shader_parameter("wind_strength", wind_strength)
+	sail_material.set_shader_parameter("wind_strength", wind_strength * throttle)
 	_update_ship_buoyancy(delta)
 	hud.text = "OCEAN LORDS  |  %.1f уз  |  Паруса %d%%" % [speed, roundi(throttle * 100)]
 	_update_camera(delta)
