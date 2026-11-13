@@ -8,10 +8,11 @@ var speed: float = 0.0
 var throttle: float = 0.7
 var turn_input: float = 0.0
 var touch_turn: float = 0.0
-var touch_throttle: float = 0.0
-var touch_active: bool = false
+var touch_enabled: bool = false
+var touch_sails: float = 0.7
 var hud: Label
 var sea_material: StandardMaterial3D
+const TOUCH_HELM = preload("res://scripts/touch_helm.gd")
 
 const MAX_SPEED := 12.0
 const ACCEL := 2.2
@@ -22,6 +23,7 @@ func _ready() -> void:
 	_create_ship()
 	_create_camera()
 	_create_hud()
+	_create_touch_controls()
 
 func _create_world() -> void:
 	var world := WorldEnvironment.new()
@@ -85,38 +87,36 @@ func _create_hud() -> void:
 	hud.add_theme_font_size_override("font_size", 22)
 	layer.add_child(hud)
 	var help := Label.new()
-	help.text = "A/D or arrows: helm   W/S: sails   Touch: left/right to steer"
+	help.text = "A/D or arrows: helm   W/S: sails   Touch: left helm / right sails"
 	help.position = Vector2(24, 55)
 	help.add_theme_font_size_override("font_size", 15)
 	layer.add_child(help)
 
-func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventScreenTouch:
-		touch_active = event.pressed
-		if not touch_active:
-			touch_turn = 0.0
-			touch_throttle = 0.0
-		else:
-			_update_touch(event.position)
-	elif event is InputEventScreenDrag:
-		_update_touch(event.position)
+func _create_touch_controls() -> void:
+	var controls := Control.new()
+	controls.set_script(TOUCH_HELM)
+	var layer := CanvasLayer.new()
+	layer.layer = 2
+	add_child(layer)
+	layer.add_child(controls)
+	controls.helm_changed.connect(_on_helm_changed)
+	controls.sails_changed.connect(_on_sails_changed)
 
-func _update_touch(pos: Vector2) -> void:
-	var view := get_viewport().get_visible_rect().size
-	if view.x <= 0 or view.y <= 0:
-		return
-	touch_turn = clampf((pos.x / view.x - 0.5) * 2.0, -1.0, 1.0)
-	touch_throttle = 1.0 if pos.y < view.y * 0.6 else -1.0
+func _on_helm_changed(value: float) -> void:
+	touch_turn = value
+	touch_enabled = absf(value) > 0.01
+
+func _on_sails_changed(value: float) -> void:
+	touch_sails = value
+	throttle = value
 
 func _physics_process(delta: float) -> void:
 	var steer := Input.get_axis("ui_left", "ui_right")
-	if touch_active:
+	if touch_enabled:
 		steer = touch_turn
 	turn_input = move_toward(turn_input, steer, delta * 2.5)
 	var sail_change := Input.get_axis("ui_down", "ui_up")
-	if touch_active:
-		sail_change = touch_throttle
-	throttle = clampf(throttle + sail_change * delta * 0.35, 0.0, 1.0)
+		throttle = clampf(throttle + sail_change * delta * 0.35, 0.0, 1.0)
 	var target_speed := throttle * MAX_SPEED
 	speed = move_toward(speed, target_speed, ACCEL * delta)
 	ship.rotate_y(-turn_input * TURN_RATE * delta * (0.35 + speed / MAX_SPEED * 0.65))
