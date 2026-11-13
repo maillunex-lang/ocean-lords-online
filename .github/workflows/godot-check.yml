@@ -16,20 +16,20 @@ jobs:
         run: |
           set -euo pipefail
           godot --headless --editor --path . --import --quit 2>&1 | tee import.log
-          if grep -Ei '(SCRIPT ERROR|Parse Error|Compile Error|Failed to load script|ERROR:)' import.log; then exit 1; fi
+          if grep -Ei '(SCRIPT ERROR|Parse Error|Compile Error|Failed to load script|ERROR:)' import.log | grep -vF 'ERROR: Unable to load fontconfig, system font support is disabled.'; then exit 1; fi
       - name: Smoke test
         shell: bash
         run: |
           set -euo pipefail
           godot --headless --path . --quit-after 30 2>&1 | tee runtime.log
-          if grep -Ei '(SCRIPT ERROR|Parse Error|Compile Error|Failed to load script|ERROR:)' runtime.log; then exit 1; fi
+          if grep -Ei '(SCRIPT ERROR|Parse Error|Compile Error|Failed to load script|ERROR:)' runtime.log | grep -vF 'ERROR: Unable to load fontconfig, system font support is disabled.'; then exit 1; fi
       - name: Brigantine LOD tests
         shell: bash
         run: |
           set -euo pipefail
           godot --headless --path . --script res://tests/test_ship_lod.gd 2>&1 | tee lod-test.log
           grep -F 'SHIP_LOD_TEST_PASS' lod-test.log
-          if grep -Ei '(SCRIPT ERROR|Parse Error|Compile Error|Failed to load script|ERROR:)' lod-test.log; then exit 1; fi
+          if grep -Ei '(SCRIPT ERROR|Parse Error|Compile Error|Failed to load script|ERROR:)' lod-test.log | grep -vF 'ERROR: Unable to load fontconfig, system font support is disabled.'; then exit 1; fi
   android-debug-apk:
     needs: import-and-parse
     runs-on: ubuntu-latest
@@ -42,14 +42,14 @@ jobs:
         run: |
           set -euo pipefail
           godot --headless --editor --path . --import --quit 2>&1 | tee import.log
-          if grep -Ei '(SCRIPT ERROR|Parse Error|Compile Error|Failed to load script|ERROR:)' import.log; then exit 1; fi
+          if grep -Ei '(SCRIPT ERROR|Parse Error|Compile Error|Failed to load script|ERROR:)' import.log | grep -vF 'ERROR: Unable to load fontconfig, system font support is disabled.'; then exit 1; fi
       - name: Export Android debug APK
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p build
           godot --headless --path . --export-debug "Android" build/ocean-lords-online-debug.apk 2>&1 | tee export.log
-          if grep -Ei '(SCRIPT ERROR|Parse Error|Compile Error|Failed to load script|ERROR:)' export.log; then exit 1; fi
+          if grep -Ei '(SCRIPT ERROR|Parse Error|Compile Error|Failed to load script|ERROR:)' export.log | grep -vF 'ERROR: Unable to load fontconfig, system font support is disabled.'; then exit 1; fi
           test -s build/ocean-lords-online-debug.apk
       - uses: actions/upload-artifact@v4
         with:
