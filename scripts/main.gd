@@ -158,6 +158,7 @@ func _toggle_day_night() -> void:
 		env.background_color = Color(0.012, 0.028, 0.065)
 		env.ambient_light_color = Color(0.09, 0.14, 0.24)
 		sun_light.light_energy = 0.12
+		(sea_mesh.material_override as ShaderMaterial).set_shader_parameter("sun_glitter", 0.035)
 		day_night_button.text = "☀ День"
 		(sea_mesh.material_override as ShaderMaterial).set_shader_parameter("deep_color", Color(0.008, 0.035, 0.075))
 		(sea_mesh.material_override as ShaderMaterial).set_shader_parameter("crest_color", Color(0.025, 0.10, 0.16))
@@ -165,6 +166,7 @@ func _toggle_day_night() -> void:
 		env.background_color = Color(0.42, 0.65, 0.74)
 		env.ambient_light_color = Color(0.65, 0.77, 0.85)
 		sun_light.light_energy = 1.4
+		(sea_mesh.material_override as ShaderMaterial).set_shader_parameter("sun_glitter", 0.32)
 		day_night_button.text = "☾ Ночь"
 		(sea_mesh.material_override as ShaderMaterial).set_shader_parameter("deep_color", Color(0.025, 0.16, 0.22))
 		(sea_mesh.material_override as ShaderMaterial).set_shader_parameter("crest_color", Color(0.10, 0.38, 0.43))
