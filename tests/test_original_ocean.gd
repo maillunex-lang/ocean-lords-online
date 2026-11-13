@@ -33,7 +33,12 @@ func _run() -> void:
 	game._update_celestial_discs()
 	var rotated_sun_bearing: Vector3 = (game.sun_disc.global_position - game.camera.global_position).normalized()
 	assert(initial_sun_bearing.distance_to(rotated_sun_bearing) < 0.001, "Sun still camera-heading locked")
+	# A long voyage must not sail off the finite ocean mesh.
+	game.ship.global_position = Vector3(420.0, 0.0, -370.0)
 	game._physics_process(1.0 / 30.0)
+	assert(absf(game.sea_mesh.global_position.x - game.ship.global_position.x) < 0.01, "Ocean patch did not follow ship X")
+	assert(absf(game.sea_mesh.global_position.z - game.ship.global_position.z) < 0.01, "Ocean patch did not follow ship Z")
+	assert(shader_source.contains("sea_world_xz.x * 0.87"), "Wave phase must use world coordinates when ocean patch moves")
 	assert(float(sea.get_shader_parameter("ship_speed")) > 0.0, "Wake has no ship speed")
 	assert((sea.get_shader_parameter("ship_position") as Vector3).distance_to(game.ship.global_position) < 0.01, "Wake not following the ship")
 	print("ORIGINAL_OCEAN_PASS: 4 images, waves, stable sun, moving boat wake")

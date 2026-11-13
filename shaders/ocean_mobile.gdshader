@@ -26,8 +26,8 @@ varying vec2 sea_world_xz;
 
 void vertex() {
     sea_world_xz = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xz;
-    float a = (VERTEX.x * 0.87 + VERTEX.z * 0.49) * wave_scale + TIME * wave_speed;
-    float b = (VERTEX.x * -0.43 + VERTEX.z * 0.91) * wave_scale * 1.6 - TIME * wave_speed * 0.7;
+    float a = (sea_world_xz.x * 0.87 + sea_world_xz.y * 0.49) * wave_scale + TIME * wave_speed;
+    float b = (sea_world_xz.x * -0.43 + sea_world_xz.y * 0.91) * wave_scale * 1.6 - TIME * wave_speed * 0.7;
     float wa = sin(a);
     float wb = sin(b);
     VERTEX.y += wave_height * (wa + 0.45 * wb);
