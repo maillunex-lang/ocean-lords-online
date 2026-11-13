@@ -32,7 +32,12 @@ const MESHY_LOD_PATHS := [
     "res://assets/ships/brigantine_lod1.glb",
     "res://assets/ships/brigantine_lod2.glb"
 ]
-const LOD_DISTANCES := [45.0, 90.0]
+const LOD_DISTANCES := [65.0, 120.0]
+const SHIP_LENGTH_METERS := 24.0
+var camera_zoom: float = 1.0
+var zoom_label: Label
+var zoom_minus: Button
+var zoom_plus: Button
 var ship_lod_nodes: Array[Node3D] = []
 var active_ship_lod: int = -1
 var current_heel: float = 0.0
@@ -143,11 +148,37 @@ func _try_load_meshy_ship() -> void:
 	for child in ship.get_children():
 		if child != ship_visual:
 			child.queue_free()
+	# Meshy Preview GLB was generated with its long axis along X, not Godot -Z.
+	# Derive the scale from the imported mesh, then align every LOD identically.
+	var reference_bounds := _mesh_bounds(imported[0])
+	if reference_bounds.size.x <= 0.01:
+		push_warning("Meshy ship bounds invalid; retaining primitive fallback")
+		for model in imported:
+			model.queue_free()
+		return
+	var uniform_scale: float = SHIP_LENGTH_METERS / reference_bounds.size.x
+	var center: Vector3 = reference_bounds.get_center()
 	for model in imported:
+		model.scale = Vector3.ONE * uniform_scale
+		model.rotation.y = PI / 2.0
+		# Keep the center of the hull close to the sea surface.
+		model.position = Vector3(0.0, 7.8, 0.0) - (Basis(Vector3.UP, PI / 2.0) * center) * uniform_scale
 		ship_visual.add_child(model)
 		model.visible = false
 	ship_lod_nodes = imported
 	_set_ship_lod(0)
+
+
+func _mesh_bounds(node: Node3D) -> AABB:
+	var bounds := AABB()
+	var initialized := false
+	for child in node.get_children():
+		if child is MeshInstance3D:
+			var mesh_instance := child as MeshInstance3D
+			var local_bounds := mesh_instance.transform * mesh_instance.get_aabb()
+			bounds = bounds.merge(local_bounds) if initialized else local_bounds
+			initialized = true
+	return bounds
 
 
 func _set_ship_lod(index: int) -> void:
@@ -173,7 +204,7 @@ func _update_ship_lod() -> void:
 func _create_camera() -> void:
 	camera = Camera3D.new()
 	camera.current = true
-	camera.fov = 52.0
+	camera.fov = 49.0
 	add_child(camera)
 	_update_camera(1.0)
 
@@ -182,18 +213,30 @@ func _create_hud() -> void:
 	add_child(hud_layer)
 	hud = Label.new()
 	hud.position = Vector2(24, 22)
-	hud.add_theme_font_size_override("font_size", 22)
+	hud.add_theme_font_size_override("font_size", 26)
 	hud_layer.add_child(hud)
 	hud_help = Label.new()
-	hud_help.text = "A/D: руль   W/S: паруса"
-	hud_help.add_theme_font_size_override("font_size", 15)
+	hud_help.text = "Руль: слева   •   Паруса: справа"
+	hud_help.add_theme_font_size_override("font_size", 19)
 	hud_layer.add_child(hud_help)
 	day_night_button = Button.new()
 	day_night_button.text = "☾ Ночь"
-	day_night_button.custom_minimum_size = Vector2(156, 62)
+	day_night_button.custom_minimum_size = Vector2(150, 66)
 	day_night_button.add_theme_font_size_override("font_size", 23)
 	day_night_button.pressed.connect(_toggle_day_night)
 	hud_layer.add_child(day_night_button)
+	zoom_minus = Button.new()
+	zoom_minus.text = "−"
+	zoom_minus.custom_minimum_size = Vector2(64, 64)
+	zoom_minus.add_theme_font_size_override("font_size", 32)
+	zoom_minus.pressed.connect(func(): _set_zoom(camera_zoom * 1.2))
+	hud_layer.add_child(zoom_minus)
+	zoom_plus = Button.new()
+	zoom_plus.text = "+"
+	zoom_plus.custom_minimum_size = Vector2(64, 64)
+	zoom_plus.add_theme_font_size_override("font_size", 32)
+	zoom_plus.pressed.connect(func(): _set_zoom(camera_zoom / 1.2))
+	hud_layer.add_child(zoom_plus)
 	_reposition_hud()
 	get_viewport().size_changed.connect(_reposition_hud)
 
@@ -213,6 +256,22 @@ func _reposition_hud() -> void:
 	if safe.size.x > 0 and screen.x > 0:
 		right_margin = maxf(24.0, float(screen.x - safe.end.x) * viewport_size.x / float(screen.x) + 16.0)
 	day_night_button.position = Vector2(viewport_size.x - right_margin - day_night_button.custom_minimum_size.x, top_margin)
+	zoom_plus.position = Vector2(viewport_size.x - right_margin - 64.0, top_margin + 78.0)
+	zoom_minus.position = Vector2(viewport_size.x - right_margin - 64.0, top_margin + 150.0)
+
+func _set_zoom(value: float) -> void:
+	camera_zoom = clampf(value, 0.65, 1.85)
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventMagnifyGesture:
+		_set_zoom(camera_zoom / event.factor)
+	elif event is InputEventMouseButton and event.pressed:
+		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
+			_set_zoom(camera_zoom / 1.12)
+		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			_set_zoom(camera_zoom * 1.12)
+
 
 func _toggle_day_night() -> void:
 	is_night = not is_night
@@ -268,7 +327,7 @@ func _physics_process(delta: float) -> void:
 	ship.translate_object_local(Vector3(0, 0, -speed * delta))
 	ocean_time += delta
 	_update_ship_buoyancy(delta)
-	hud.text = "OCEAN LORDS ONLINE  |  %.1f kn  |  Sails %d%%" % [speed, roundi(throttle * 100)]
+	hud.text = "OCEAN LORDS  |  %.1f уз  |  Паруса %d%%" % [speed, roundi(throttle * 100)]
 	_update_camera(delta)
 	_update_ship_lod()
 
@@ -297,6 +356,8 @@ func _update_ship_buoyancy(delta: float) -> void:
 func _update_camera(delta: float) -> void:
 	if camera == null or ship == null:
 		return
-	var target := ship.global_position + Vector3(0, 24, 29)
+	# Chase camera follows ship heading, keeps the 24m hull clearly visible.
+	var follow_offset := ship.global_basis * Vector3(16.0, 16.0, 29.0) * camera_zoom
+	var target := ship.global_position + follow_offset
 	camera.global_position = camera.global_position.lerp(target, clampf(delta * 3.0, 0, 1))
-	camera.look_at(ship.global_position + Vector3(0, 1.5, 0), Vector3.UP)
+	camera.look_at(ship.global_position + Vector3(0, 7.0, 0), Vector3.UP)
