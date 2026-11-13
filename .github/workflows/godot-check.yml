@@ -1,0 +1,17 @@
+name: Godot validation
+on:
+  push:
+    branches: [main, "feat/**"]
+  pull_request:
+    branches: [main]
+jobs:
+  import-and-parse:
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Import project and parse scripts
+        run: godot --headless --editor --path . --import --quit
+      - name: Headless startup smoke test
+        run: timeout 20s godot --headless --path . --quit-after 20
