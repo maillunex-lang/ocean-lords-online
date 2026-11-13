@@ -22,7 +22,32 @@ jobs:
         run: |
           set -o pipefail
           godot --headless --path . --quit-after 20 2>&1 | tee runtime.log
-          grep -Ev 'ERROR: Parameter "m" is null\\.' runtime.log > runtime-filtered.log || true
+          sed -E 's/\x1B\[[0-9;]*[[:alpha:]]//g' runtime.log | grep -Ev '^[[:space:]]*ERROR: Parameter "m" is null\\.
+          if grep -Ei '(SCRIPT ERROR|Parse Error|Compile Error|Failed to load script|ERROR:)' runtime-filtered.log; then exit 1; fi
+  android-debug-apk:
+    needs: import-and-parse
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Import resources
+        run: godot --headless --editor --path . --import --quit
+      - name: Export Android debug APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          godot --headless --path . --export-debug "Android" build/ocean-lords-online-debug.apk 2>&1 | tee export.log
+          if grep -Ei '(SCRIPT ERROR|Parse Error|Compile Error|ERROR:)' export.log; then exit 1; fi
+          test -s build/ocean-lords-online-debug.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ocean-lords-online-android-debug
+          path: build/ocean-lords-online-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+ > runtime-filtered.log || true
           if grep -Ei '(SCRIPT ERROR|Parse Error|Compile Error|Failed to load script|ERROR:)' runtime-filtered.log; then exit 1; fi
   android-debug-apk:
     needs: import-and-parse
