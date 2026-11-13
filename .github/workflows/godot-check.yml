@@ -23,3 +23,26 @@ jobs:
           set -o pipefail
           godot --headless --path . --quit-after 20 2>&1 | tee runtime.log
           if grep -Ei '(SCRIPT ERROR|Parse Error|Compile Error|Failed to load script|ERROR:)' runtime.log; then exit 1; fi
+  android-debug-apk:
+    needs: import-and-parse
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Import resources
+        run: godot --headless --editor --path . --import --quit
+      - name: Export Android debug APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          godot --headless --path . --export-debug "Android" build/ocean-lords-online-debug.apk 2>&1 | tee export.log
+          if grep -Ei '(SCRIPT ERROR|Parse Error|Compile Error|ERROR:)' export.log; then exit 1; fi
+          test -s build/ocean-lords-online-debug.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ocean-lords-online-android-debug
+          path: build/ocean-lords-online-debug.apk
+          if-no-files-found: error
+          retention-days: 14
