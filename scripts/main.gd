@@ -21,6 +21,14 @@ var sea_mesh: MeshInstance3D
 var sea_material: StandardMaterial3D
 const TOUCH_HELM = preload("res://scripts/touch_helm.gd")
 const OCEAN_SHADER = preload("res://shaders/ocean_mobile.gdshader")
+const SAIL_SHADER = preload("res://shaders/sail_wind.gdshader")
+const WOOD_SHADER = preload("res://shaders/ship_wood.gdshader")
+const GLOW_SHADER = preload("res://shaders/celestial_glow.gdshader")
+var sail_material: ShaderMaterial
+var sun_disc: MeshInstance3D
+var moon_disc: MeshInstance3D
+var wind_direction := Vector2(0.94, 0.34)
+var wind_strength := 0.8
 const WATER_HEIGHT := -0.45
 const WAVE_HEIGHT := 0.18
 const WAVE_SCALE := 0.12
@@ -49,6 +57,8 @@ const TURN_RATE := 0.65
 func _ready() -> void:
 	_create_world()
 	_create_ship()
+	_create_sails()
+	_create_celestial_discs()
 	_create_camera()
 	_create_hud()
 	_create_touch_controls()
@@ -160,7 +170,12 @@ func _try_load_meshy_ship() -> void:
 		return
 	var uniform_scale: float = SHIP_LENGTH_METERS / reference_bounds.size.x
 	var center: Vector3 = reference_bounds.get_center()
+	var wood := ShaderMaterial.new()
+	wood.shader = WOOD_SHADER
 	for model in imported:
+		for part in model.get_children():
+			if part is MeshInstance3D:
+				(part as MeshInstance3D).material_override = wood
 		model.scale = Vector3.ONE * uniform_scale
 		model.rotation.y = PI / 2.0
 		# Keep the center of the hull close to the sea surface.
@@ -169,6 +184,60 @@ func _try_load_meshy_ship() -> void:
 		model.visible = false
 	ship_lod_nodes = imported
 	_set_ship_lod(0)
+
+
+func _create_sails() -> void:
+	# Preview GLB lacks sail cloth. Lightweight double-sided cloth is added
+	# separately to the hull so it remains visible across all mesh LODs.
+	sail_material = ShaderMaterial.new()
+	sail_material.shader = SAIL_SHADER
+	sail_material.set_shader_parameter("wind_direction", wind_direction)
+	sail_material.set_shader_parameter("wind_strength", wind_strength)
+	for mast_z in [-3.0, 5.0]:
+		for height in [11.0, 15.0]:
+			var cloth := MeshInstance3D.new()
+			var plane := PlaneMesh.new()
+			plane.size = Vector2(6.4 if height < 13.0 else 5.1, 4.1)
+			plane.subdivide_width = 16
+			plane.subdivide_depth = 12
+			cloth.mesh = plane
+			cloth.rotation_degrees.x = 90.0
+			cloth.position = Vector3(0, height, mast_z)
+			cloth.material_override = sail_material
+			ship_visual.add_child(cloth)
+
+
+func _create_celestial_discs() -> void:
+	sun_disc = _make_glow(Color(1.0, 0.78, 0.38), 1.7)
+	moon_disc = _make_glow(Color(0.58, 0.75, 1.0), 1.2)
+	moon_disc.visible = false
+
+
+func _make_glow(color: Color, intensity: float) -> MeshInstance3D:
+	var disc := MeshInstance3D.new()
+	var quad := QuadMesh.new()
+	quad.size = Vector2(18.0, 18.0)
+	disc.mesh = quad
+	var material := ShaderMaterial.new()
+	material.shader = GLOW_SHADER
+	material.set_shader_parameter("glow_color", color)
+	material.set_shader_parameter("glow_intensity", intensity)
+	disc.material_override = material
+	add_child(disc)
+	return disc
+
+
+func _update_celestial_discs() -> void:
+	if camera == null:
+		return
+	# Camera-facing sky billboards follow the ship to avoid floating out of range.
+	var center := camera.global_position
+	var ahead := -camera.global_basis.z * 165.0
+	var right := camera.global_basis.x
+	sun_disc.global_position = center + ahead + Vector3.UP * 35.0 - right * 35.0
+	moon_disc.global_position = center + ahead + Vector3.UP * 35.0 + right * 30.0
+	sun_disc.look_at(camera.global_position, Vector3.UP)
+	moon_disc.look_at(camera.global_position, Vector3.UP)
 
 
 func _mesh_bounds(node: Node3D) -> AABB:
@@ -278,6 +347,8 @@ func _unhandled_input(event: InputEvent) -> void:
 func _toggle_day_night() -> void:
 	is_night = not is_night
 	var env := world_environment.environment
+	sun_disc.visible = not is_night
+	moon_disc.visible = is_night
 	if is_night:
 		env.background_color = Color(0.075, 0.13, 0.23)
 		env.ambient_light_color = Color(0.34, 0.43, 0.59)
@@ -332,9 +403,12 @@ func _physics_process(delta: float) -> void:
 	ship.rotate_y(-turn_input * TURN_RATE * delta * (0.35 + speed / MAX_SPEED * 0.65))
 	ship.translate_object_local(Vector3(0, 0, -speed * delta))
 	ocean_time += delta
+	wind_strength = 0.8 + 0.18 * sin(ocean_time * 0.27)
+	sail_material.set_shader_parameter("wind_strength", wind_strength)
 	_update_ship_buoyancy(delta)
 	hud.text = "OCEAN LORDS  |  %.1f уз  |  Паруса %d%%" % [speed, roundi(throttle * 100)]
 	_update_camera(delta)
+	_update_celestial_discs()
 	_update_ship_lod()
 
 func _wave_height_at(pos: Vector3, t: float) -> float:
