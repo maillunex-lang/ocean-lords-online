@@ -11,6 +11,8 @@ var touch_turn: float = 0.0
 var touch_enabled: bool = false
 var touch_sails: float = 0.7
 var hud: Label
+var hud_help: Label
+var hud_layer: CanvasLayer
 var sea_material: StandardMaterial3D
 const TOUCH_HELM = preload("res://scripts/touch_helm.gd")
 
@@ -80,27 +82,40 @@ func _create_camera() -> void:
 	_update_camera(1.0)
 
 func _create_hud() -> void:
-	var layer := CanvasLayer.new()
-	add_child(layer)
+	hud_layer = CanvasLayer.new()
+	add_child(hud_layer)
 	hud = Label.new()
 	hud.position = Vector2(24, 22)
 	hud.add_theme_font_size_override("font_size", 22)
-	layer.add_child(hud)
-	var help := Label.new()
-	help.text = "A/D or arrows: helm   W/S: sails   Touch: left helm / right sails"
-	help.position = Vector2(24, 55)
-	help.add_theme_font_size_override("font_size", 15)
-	layer.add_child(help)
+	hud_layer.add_child(hud)
+	hud_help = Label.new()
+	hud_help.text = "A/D: руль   W/S: паруса"
+	hud_help.add_theme_font_size_override("font_size", 15)
+	hud_layer.add_child(hud_help)
+	_reposition_hud()
+	get_viewport().size_changed.connect(_reposition_hud)
+
+
+func _reposition_hud() -> void:
+	var safe: Rect2i = DisplayServer.get_display_safe_area()
+	var screen: Vector2i = DisplayServer.screen_get_size()
+	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
+	var left_margin: float = 24.0
+	var top_margin: float = 24.0
+	if safe.size.x > 0 and screen.x > 0 and screen.y > 0:
+		left_margin = maxf(24.0, float(safe.position.x) * viewport_size.x / float(screen.x) + 16.0)
+		top_margin = maxf(24.0, float(safe.position.y) * viewport_size.y / float(screen.y) + 16.0)
+	hud.position = Vector2(left_margin, top_margin)
+	hud_help.position = Vector2(left_margin, top_margin + 36.0)
 
 func _create_touch_controls() -> void:
-	var controls := Control.new()
-	controls.set_script(TOUCH_HELM)
+	var controls: Control = TOUCH_HELM.new()
 	var layer := CanvasLayer.new()
 	layer.layer = 2
 	add_child(layer)
 	layer.add_child(controls)
-	controls.helm_changed.connect(_on_helm_changed)
-	controls.sails_changed.connect(_on_sails_changed)
+	controls.connect("helm_changed", Callable(self, "_on_helm_changed"))
+	controls.connect("sails_changed", Callable(self, "_on_sails_changed"))
 
 func _on_helm_changed(value: float) -> void:
 	touch_turn = value
