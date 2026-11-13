@@ -9,6 +9,7 @@ uniform sampler2D foam_noise : repeat_enable, filter_linear_mipmap;
 uniform bool use_texture_details = false;
 uniform float normal_strength : hint_range(0.0, 2.0) = 1.10;
 uniform float foam_amount : hint_range(0.0, 1.0) = 0.82;
+uniform bool wake_detail_enabled = true;
 uniform vec3 sun_direction = vec3(0.4, 0.8, 0.25);
 uniform float sun_glitter : hint_range(0.0, 1.0) = 0.32;
 uniform vec4 foam_color : source_color = vec4(0.70, 0.83, 0.83, 1.0);
@@ -79,8 +80,11 @@ void fragment() {
     float wake = 0.0;
     if (wake_shape > 0.005 && ship_speed > 0.05) {
         vec2 wake_uv = vec2(behind * 0.13 - TIME * 0.045, dot(offset, sideways) * 0.38);
-        float wake_texture = texture(foam_noise, wake_uv).r;
-        float wake_breakup = smoothstep(0.15, 0.75, wake_texture);
+        float wake_breakup = 0.75;
+        if (wake_detail_enabled) {
+            float wake_texture = texture(foam_noise, wake_uv).r;
+            wake_breakup = smoothstep(0.15, 0.75, wake_texture);
+        }
         float wake_strength = clamp(ship_speed / 6.0, 0.0, 1.0);
         wake = clamp(wake_shape * mix(0.38, 1.0, wake_breakup) * wake_strength, 0.0, 0.85);
     }

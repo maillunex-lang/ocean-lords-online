@@ -36,6 +36,8 @@ const WAVE_SPEED := 0.75
 # World-space bearings stay constant when the boat/camera turns.
 const SUN_SKY_BEARING := Vector3(-0.74, 0.28, -0.61)
 const MOON_SKY_BEARING := Vector3(0.45, 0.34, -0.82)
+# 0 = economical, 1 = balanced, 2 = high detail. User's source maps remain loaded.
+var ocean_quality: int = 1
 var ocean_time: float = 0.0
 var ship_visual: Node3D
 const MESHY_LOD_PATHS := [
@@ -66,6 +68,7 @@ func _ready() -> void:
 	_create_camera()
 	_create_hud()
 	_create_touch_controls()
+	_apply_ocean_quality(ocean_quality)
 
 func _create_world() -> void:
 	world_environment = WorldEnvironment.new()
@@ -116,6 +119,17 @@ func _create_world() -> void:
 	sea_mesh.material_override = ocean_material
 	sea_mesh.position.y = WATER_HEIGHT
 	add_child(sea_mesh)
+
+func _apply_ocean_quality(requested_quality: int) -> void:
+	ocean_quality = clampi(requested_quality, 0, 2)
+	var shader := sea_mesh.material_override as ShaderMaterial
+	var strength := [0.70, 1.10, 1.35]
+	var foam := [0.58, 0.82, 0.92]
+	shader.set_shader_parameter("normal_strength", strength[ocean_quality])
+	shader.set_shader_parameter("foam_amount", foam[ocean_quality])
+	# Retain all four supplied textures in every profile.
+	shader.set_shader_parameter("wake_detail_enabled", ocean_quality > 0)
+
 
 func _make_box(parent: Node3D, size: Vector3, pos: Vector3, color: Color) -> void:
 	var part := MeshInstance3D.new()
@@ -415,6 +429,8 @@ func _physics_process(delta: float) -> void:
 	speed = move_toward(speed, target_speed, response * delta)
 	ship.rotate_y(-turn_input * TURN_RATE * delta * (0.35 + speed / MAX_SPEED * 0.65))
 	ship.translate_object_local(Vector3(0, 0, -speed * delta))
+	# Follow the ship with the ocean patch; world-space shader waves remain seamless.
+	sea_mesh.global_position = Vector3(ship.global_position.x, WATER_HEIGHT, ship.global_position.z)
 	ocean_time += delta
 	var water_shader := sea_mesh.material_override as ShaderMaterial
 	water_shader.set_shader_parameter("ship_position", ship.global_position)
