@@ -37,6 +37,14 @@ const WAVE_SPEED := 0.75
 const SUN_SKY_BEARING := Vector3(-0.74, 0.28, -0.61)
 const MOON_SKY_BEARING := Vector3(0.45, 0.34, -0.82)
 # 0 = economical, 1 = balanced, 2 = high detail. User's source maps remain loaded.
+var auto_ocean_quality: bool = true
+var quality_sample_time: float = 0.0
+var quality_sample_frames: int = 0
+var quality_low_streak: int = 0
+var quality_high_streak: int = 0
+var quality_change_cooldown: float = 0.0
+const QUALITY_SAMPLE_SECONDS := 3.0
+const QUALITY_CHANGE_COOLDOWN := 12.0
 var ocean_quality: int = 1
 var ocean_time: float = 0.0
 var ship_visual: Node3D
@@ -129,6 +137,42 @@ func _apply_ocean_quality(requested_quality: int) -> void:
 	shader.set_shader_parameter("foam_amount", foam[ocean_quality])
 	# Retain all four supplied textures in every profile.
 	shader.set_shader_parameter("wake_detail_enabled", ocean_quality > 0)
+
+
+func _process(delta: float) -> void:
+	if not auto_ocean_quality:
+		return
+	quality_change_cooldown = maxf(0.0, quality_change_cooldown - delta)
+	quality_sample_time += delta
+	quality_sample_frames += 1
+	if quality_sample_time >= QUALITY_SAMPLE_SECONDS:
+		var measured_fps := float(quality_sample_frames) / quality_sample_time
+		_consider_ocean_fps(measured_fps)
+		quality_sample_time = 0.0
+		quality_sample_frames = 0
+
+
+func _consider_ocean_fps(measured_fps: float) -> void:
+	# Require consecutive low/high windows to prevent quality oscillation.
+	if measured_fps < 25.0:
+		quality_low_streak += 1
+		quality_high_streak = 0
+	elif measured_fps > 53.0:
+		quality_high_streak += 1
+		quality_low_streak = 0
+	else:
+		quality_low_streak = 0
+		quality_high_streak = 0
+	if quality_change_cooldown > 0.0:
+		return
+	if quality_low_streak >= 2 and ocean_quality > 0:
+		_apply_ocean_quality(ocean_quality - 1)
+		quality_change_cooldown = QUALITY_CHANGE_COOLDOWN
+		quality_low_streak = 0
+	elif quality_high_streak >= 4 and ocean_quality < 2:
+		_apply_ocean_quality(ocean_quality + 1)
+		quality_change_cooldown = QUALITY_CHANGE_COOLDOWN
+		quality_high_streak = 0
 
 
 func _make_box(parent: Node3D, size: Vector3, pos: Vector3, color: Color) -> void:

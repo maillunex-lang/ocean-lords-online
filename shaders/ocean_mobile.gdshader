@@ -9,7 +9,6 @@ uniform sampler2D foam_noise : repeat_enable, filter_linear_mipmap;
 uniform bool use_texture_details = false;
 uniform float normal_strength : hint_range(0.0, 2.0) = 1.10;
 uniform float foam_amount : hint_range(0.0, 1.0) = 0.82;
-uniform bool wake_detail_enabled = true;
 uniform vec3 sun_direction = vec3(0.4, 0.8, 0.25);
 uniform float sun_glitter : hint_range(0.0, 1.0) = 0.32;
 uniform vec4 foam_color : source_color = vec4(0.70, 0.83, 0.83, 1.0);
@@ -27,8 +26,8 @@ varying vec2 sea_world_xz;
 
 void vertex() {
     sea_world_xz = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xz;
-    float a = (sea_world_xz.x * 0.87 + sea_world_xz.y * 0.49) * wave_scale + TIME * wave_speed;
-    float b = (sea_world_xz.x * -0.43 + sea_world_xz.y * 0.91) * wave_scale * 1.6 - TIME * wave_speed * 0.7;
+    float a = (VERTEX.x * 0.87 + VERTEX.z * 0.49) * wave_scale + TIME * wave_speed;
+    float b = (VERTEX.x * -0.43 + VERTEX.z * 0.91) * wave_scale * 1.6 - TIME * wave_speed * 0.7;
     float wa = sin(a);
     float wb = sin(b);
     VERTEX.y += wave_height * (wa + 0.45 * wb);
@@ -74,20 +73,7 @@ void fragment() {
     float diverging = exp(-pow((cross_track - (1.3 + max(behind, 0.0) * 0.23)) / 0.85, 2.0));
     diverging *= smoothstep(-2.0, 3.0, behind) * (1.0 - smoothstep(20.0, 45.0, behind));
     float bow_foam = exp(-length(vec2(dot(offset, forward) - 8.0, cross_track * 1.5)) * 0.6);
-    // Broken, moving foam instead of a flat painted V behind the hull.
-    // Sample the supplied foam texture only near the wake to limit GPU work.
-    float wake_shape = trail * 0.50 + diverging * 0.48 + bow_foam * 0.9;
-    float wake = 0.0;
-    if (wake_shape > 0.005 && ship_speed > 0.05) {
-        vec2 wake_uv = vec2(behind * 0.13 - TIME * 0.045, dot(offset, sideways) * 0.38);
-        float wake_breakup = 0.75;
-        if (wake_detail_enabled) {
-            float wake_texture = texture(foam_noise, wake_uv).r;
-            wake_breakup = smoothstep(0.15, 0.75, wake_texture);
-        }
-        float wake_strength = clamp(ship_speed / 6.0, 0.0, 1.0);
-        wake = clamp(wake_shape * mix(0.38, 1.0, wake_breakup) * wake_strength, 0.0, 0.85);
-    }
+    float wake = clamp((trail * 0.50 + diverging * 0.48 + bow_foam * 0.9) * clamp(ship_speed / 6.0, 0.0, 1.0), 0.0, 0.8);
     ALBEDO = mix(ALBEDO, foam_color.rgb, wake);
     ROUGHNESS = mix(ROUGHNESS, 0.23, 0.20);
     METALLIC = 0.08;

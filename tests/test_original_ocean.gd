@@ -49,5 +49,15 @@ func _run() -> void:
 	game._apply_ocean_quality(2)
 	assert(game.ocean_quality == 2 and sea.get_shader_parameter("wake_detail_enabled") == true, "High mode must restore wake noise")
 	game._apply_ocean_quality(1)
+	# Adaptive quality: two slow windows lower detail; four fast windows restore it.
+	game._consider_ocean_fps(20.0)
+	assert(game.ocean_quality == 1, "Single slow sample must not change quality")
+	game._consider_ocean_fps(20.0)
+	assert(game.ocean_quality == 0, "Repeated slow FPS must lower quality")
+	game.quality_change_cooldown = 0.0
+	for i in range(4):
+		game._consider_ocean_fps(60.0)
+	assert(game.ocean_quality == 1, "Stable high FPS must restore quality")
+	assert(sea.get_shader_parameter("use_texture_details") == true, "Adaptive mode must keep original textures")
 	print("ORIGINAL_OCEAN_PASS: 4 images, waves, stable sun, moving boat wake")
 	quit(0)
